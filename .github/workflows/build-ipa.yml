@@ -1,0 +1,45 @@
+name: Build IPA
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: ./Scripts/fetch-xcframework.sh
+      - run: brew install xcodegen
+      - run: |
+          cat > project.yml << 'YML'
+          name: MirageApp
+          options:
+            bundleIdPrefix: com.mirage
+          packages:
+            Mirage:
+              path: .
+          targets:
+            MirageApp:
+              type: application
+              platform: iOS
+              deploymentTarget: "17.0"
+              sources:
+                - Examples/MirageExampleApp.swift
+              settings:
+                base:
+                  PRODUCT_BUNDLE_IDENTIFIER: com.mirage.example
+                  CODE_SIGNING_ALLOWED: NO
+                  GENERATE_INFOPLIST_FILE: YES
+              dependencies:
+                - package: Mirage
+          YML
+          xcodegen generate
+      - run: |
+          xcodebuild -project MirageApp.xcodeproj -scheme MirageApp -sdk iphoneos -configuration Release CODE_SIGNING_ALLOWED=NO -derivedDataPath build/derivedData
+          APP=$(find build/derivedData -name "*.app" -type d | head -n 1)
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          cd build && zip -r MirageExampleApp.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MirageExampleApp.ipa
+          path: build/MirageExampleApp.ipa
