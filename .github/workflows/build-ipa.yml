@@ -7,9 +7,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: ./Scripts/fetch-xcframework.sh
-      - run: brew install xcodegen
-      - run: |
+      - name: Build XCFramework
+        run: |
+          git submodule update --init --recursive
+          ./Scripts/build-xcframework.sh ios
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: |
           cat > project.yml << 'YML'
           name: MirageApp
           options:
@@ -33,13 +38,15 @@ jobs:
                 - package: Mirage
           YML
           xcodegen generate
-      - run: |
+      - name: Build
+        run: |
           xcodebuild -project MirageApp.xcodeproj -scheme MirageApp -sdk iphoneos -configuration Release CODE_SIGNING_ALLOWED=NO -derivedDataPath build/derivedData
           APP=$(find build/derivedData -name "*.app" -type d | head -n 1)
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/
           cd build && zip -r MirageExampleApp.ipa Payload
-      - uses: actions/upload-artifact@v4
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
           name: MirageExampleApp.ipa
           path: build/MirageExampleApp.ipa
